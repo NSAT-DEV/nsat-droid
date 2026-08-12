@@ -731,41 +731,49 @@ footer .sig b{color:var(--fast);font-weight:300}
 (function(){
   "use strict";
   // ── "This build" description ────────────────────────────────────────────
-  // Reads a small companion text file, build-info.txt, that sits next to
-  // index.html (and NSAT.apk) in the repo, and shows its contents verbatim.
+  // Shows the commit message of the most recent commit that changed the APK.
+  // Whatever you type as the commit message when you upload NSAT.apk is what
+  // appears here — e.g. commit the APK with the message "NSAT 8-11-2026 Update".
+  // It updates automatically on each new upload; the page never needs editing.
   //
-  // To change what appears here, edit build-info.txt — put exactly the text
-  // you want, e.g.:  NSAT 8-11-2026 Update
-  // Leave the file empty or delete it to hide the note entirely.
-  //
-  // Same-origin fetch: no GitHub API, no rate limits, no cross-origin blocking.
-  var INFO_FILE = "build-info.txt";
+  // This reads GitHub's public API from the visitor's browser. Two things to
+  // know: GitHub rate-limits unauthenticated calls to 60/hour per IP (ample
+  // for a landing page), and a small number of visitors running strict tracking
+  // protection or blocker extensions may have the request blocked — in which
+  // case the note simply stays hidden and nothing else is affected.
+  var REPO     = "NSAT-DEV/nsat-droid";
+  var APK_PATH = "NSAT.apk";   // path within the repo; change if the APK moves
 
   function run(){
     var note = document.getElementById("buildNote");
     var text = document.getElementById("buildNoteText");
     if(!note || !text) return;
 
-    fetch(INFO_FILE + "?t=" + Date.now(), { cache: "no-store" })
+    var api = "https://api.github.com/repos/" + REPO +
+              "/commits?path=" + encodeURIComponent(APK_PATH) + "&per_page=1";
+
+    fetch(api, { headers: { "Accept": "application/vnd.github+json" } })
       .then(function(r){
-        if(!r.ok) throw new Error("build-info.txt returned HTTP " + r.status);
-        return r.text();
+        if(r.status === 403){ throw new Error("GitHub API rate limit reached (60/hour)"); }
+        if(!r.ok){ throw new Error("GitHub API returned HTTP " + r.status); }
+        return r.json();
       })
-      .then(function(body){
-        var msg = (body || "").trim();
-        if(!msg){ console.info("[NSAT] build-info.txt is empty — note hidden."); return; }
-        // Guard against a 404 HTML page being served as text.
-        if(/^\s*<(?:!doctype|html)/i.test(body)){
-          console.warn("[NSAT] build-info.txt not found (got an HTML page).");
+      .then(function(data){
+        if(!Array.isArray(data) || data.length === 0){
+          console.info("[NSAT] No commit found touching " + APK_PATH + " — note hidden.");
           return;
         }
-        text.textContent = msg;
+        var msg = data[0] && data[0].commit && data[0].commit.message;
+        msg = (msg || "").trim();
+        if(!msg){ return; }
+        text.textContent = msg;   // full message; write a one-line commit for a clean note
         note.hidden = false;
       })
       .catch(function(err){
-        // Surfaces the real reason in the browser console (F12) — a blocked
-        // request, a 404, or a privacy/extension block all show up here.
-        console.warn("[NSAT] Could not load build-info.txt:", err && err.message ? err.message : err);
+        // The real reason shows here in the browser console (F12): a rate
+        // limit, a blocked request, or a network error.
+        console.warn("[NSAT] Could not load build description:",
+                     err && err.message ? err.message : err);
       });
   }
 
