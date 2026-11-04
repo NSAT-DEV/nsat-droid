@@ -239,7 +239,7 @@ footer .sig b{color:var(--fast);font-weight:300}
       time, and stops it the instant the front of your car crosses the finish line.
       Same timing core as the iPhone version, now running on Android.</p>
       <div class="ctas">
-        <a class="btn primary" href="NSAT.apk" download>Install NSAT APK</a>
+        <a class="btn primary" href="https://github.com/nsat-dev/nsat-droid/releases/latest/download/NSAT.apk" download>Install NSAT APK</a>
         <a class="btn ghost" href="#guide">Read the user guide</a>
       </div>
       <div class="buildnote" id="buildNote" hidden>
@@ -731,10 +731,10 @@ footer .sig b{color:var(--fast);font-weight:300}
 (function(){
   "use strict";
   // ── "This build" description ────────────────────────────────────────────
-  // Shows the commit message of the most recent commit that changed the APK.
-  // Whatever you type as the commit message when you upload NSAT.apk is what
-  // appears here — e.g. commit the APK with the message "NSAT 8-11-2026 Update".
-  // It updates automatically on each new upload; the page never needs editing.
+  // Shows the notes of the latest GitHub release (the download button serves
+  // that release's NSAT.apk). To publish a new version: create a release, attach
+  // the APK named exactly NSAT.apk, and write the description you want shown
+  // here — e.g. "NSAT v3.74 (11-10-2026) - …". The page never needs editing.
   //
   // This reads GitHub's public API from the visitor's browser. Two things to
   // know: GitHub rate-limits unauthenticated calls to 60/hour per IP (ample
@@ -742,15 +742,13 @@ footer .sig b{color:var(--fast);font-weight:300}
   // protection or blocker extensions may have the request blocked — in which
   // case the note simply stays hidden and nothing else is affected.
   var REPO     = "NSAT-DEV/nsat-droid";
-  var APK_PATH = "NSAT.apk";   // path within the repo; change if the APK moves
 
   function run(){
     var note = document.getElementById("buildNote");
     var text = document.getElementById("buildNoteText");
     if(!note || !text) return;
 
-    var api = "https://api.github.com/repos/" + REPO +
-              "/commits?path=" + encodeURIComponent(APK_PATH) + "&per_page=1";
+    var api = "https://api.github.com/repos/" + REPO + "/releases/latest";
 
     fetch(api, { headers: { "Accept": "application/vnd.github+json" } })
       .then(function(r){
@@ -759,12 +757,8 @@ footer .sig b{color:var(--fast);font-weight:300}
         return r.json();
       })
       .then(function(data){
-        if(!Array.isArray(data) || data.length === 0){
-          console.info("[NSAT] No commit found touching " + APK_PATH + " — note hidden.");
-          return;
-        }
-        var msg = data[0] && data[0].commit && data[0].commit.message;
-        msg = (msg || "").trim();
+        // The release description, or its title if the description is empty.
+        var msg = ((data && data.body) || "").trim() || ((data && data.name) || "").trim();
         if(!msg){ return; }
         text.textContent = msg;   // full message; write a one-line commit for a clean note
         note.hidden = false;
